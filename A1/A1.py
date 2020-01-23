@@ -10,7 +10,72 @@ train = "1b_benchmark.train.tokens"
 dev = "1b_benchmark.dev.tokens"
 test = "1b_benchmark.test.tokens"
 
+preprocessedTrain = "train.preprocessed"
+preprocessedDev = "dev.preprocessed"
+preprocessedTest = "test.preprocessed"
+
 dashLine = "------------------------------------------------------------------------"
+
+def preprocessData(trainPath, devPath, testPath):
+    trainFile = open(trainPath, "r")
+
+    freq_dict = dict()
+    corpusSize = 0
+
+    for line in trainFile:
+
+        line = '<START> ' + line + ' <STOP>'
+        tokens = line.split(" ")
+        corpusSize = len(tokens) - 1
+
+        for token in tokens:
+            token = token.strip()
+
+            # if token is already in dictionary then increment the count
+            if token in freq_dict:
+                freq_dict[token] = freq_dict[token] + 1
+            # else initialize that token's key with value 1
+            elif token != '<START>':
+                freq_dict[token] = 1
+
+    vocabulary = {k:v for (k,v) in freq_dict.items() if v >= 3}
+    vocabulary['<UNK>'] = 0
+
+    unkwords = set()
+
+    for k, v in freq_dict.items():
+        if(v < 3): 
+            vocabulary['<UNK>'] = vocabulary['<UNK>'] + freq_dict[k]
+            unkwords.add(k)
+
+    ppTrain = open(preprocessedTrain, "w")
+    trainFile.close()
+    trainFile = open(trainPath, "r")
+
+    for line in trainFile:
+        newLine = line.strip().split()
+
+        tokens = line.strip().split(" ")
+
+        i = 0
+
+        while i < len(tokens):
+            tokens[i] = tokens[i].strip()
+            if tokens[i] in unkwords:
+                newLine[i] = '<UNK>'
+
+            i += 1
+
+        for token in newLine:
+            ppTrain.write(token + " ")
+
+        ppTrain.write("\n")
+
+    ppTrain.close()
+    trainFile.close()
+
+    return (vocabulary, corpusSize)
+
 
 class UnigramModel:
     def __init__(self, text):
@@ -18,6 +83,7 @@ class UnigramModel:
         textFile = open(text, "r")
         self.freq_dict = dict()
         self.corpusSize = 0
+
         for line in textFile:
             # append stop token to EOLs
             line = line + ' <STOP>'
@@ -44,7 +110,7 @@ class UnigramModel:
         fdict = {k:v for (k,v) in idict.items() if v >= 3}
         fdict['unk'] = 0
         for k, v in idict.items():
-            if(v < 3): fdict['unk'] = fdict['unk'] + idict[k]
+            if(v < 3): fdict['<UNK>'] = fdict['<UNK>'] + idict[k]
         return fdict
 
     def calcTokenProb(self, token):
@@ -53,7 +119,7 @@ class UnigramModel:
 
         #If frequency is 0, the word is unkown
         if unigram_numerator == 0:
-            unigram_numerator = self.freq_dict.get('unk', 0)
+            unigram_numerator = self.freq_dict.get('<UNK>', 0)
 
         #The denominator is just the size of the corpus
         unigram_denominator = self.corpusSize
@@ -157,11 +223,83 @@ class UnigramModel:
 
         return self.calcPerplexity(sentences)
 
+class BigramModel:
+    def __init__(self, text, unigramModel):
+        self.uni = unigramModel
+        textFile = open(text, "r")
+        self.freq_dict = dict()
+        self.corpusSize = 0
+        for line in textFile:
+             # append stop token to EOLs
+            line = '<START>' + line + ' <STOP>'
+             # split the line into tokens
+            tokens = line.split(" ")
+            bigramList = self.createBigrams(tokens)
+            for bigram in bigramList:
+                 if bigram in self.freq_dict:
+                     self.freq_dict[bigram] = self.freq_dict[bigram] + 1
+                 # else initialize that token's key with value 1
+                 else:
+                     self.freq_dict[bigram] = 1
+        self.replaceUNKs(self.freq_dict, self.uni.unkList)
+
+    # BigramModel('1b_benchmark.test.tokens', UnigramModel('1b_benchmark.test.tokens'))
+
+    #Returns a new bigram dictionary with unked words
+    def replaceUNKs(self, idict, unks):
+        firstWord = ""
+        secondWord = ""
+        fdict = dict()
+
+        #Loop through the entire given dicts
+        for (fst, snd) in idict:
+            #Loop through the list of words that are to be converted to unk
+            for unk in unks:
+
+                #IF either word in the bigram is equal to any of the unked words, convert it to unk
+                if fst == unk:
+                    firstWord = 'unk'
+
+                if snd == unk:
+                    secondWord = 'unk'
+
+            #If either word is still empty, it is the same
+            if firstWord == "":
+                firstWord = fst
+
+            if secondWord == "":
+                secondWord = snd
+
+            #Check if the bigram is already in the dictionary before adding it
+            #This should only happen for bigrams containing unk
+            if (firstWord, secondWord) in fdict:
+                fdict[(firstWord, secondWord)] += idict[(fst, snd)]
+            else:
+                fdict[(firstWord, secondWord)] = idict[(fst, snd)]
+        print(fdict)
+        return fdict
+
+    def createBigrams(self, sentence):
+        if len(sentence) < 2:
+            return []
+
+        i = 1
+        bigramList = []
+
+        while i < len(sentence):
+            bigramList.append((sentence[i - 1].strip(), sentence[i].strip()))
+            i += 1
+
+        return bigramList
+
 
 def main():
 
     path = sys.argv[1] + "/"
 
+    preprocessData(path + train, path + dev, path + test)
+
+    """
     print("\n" + dashLine)
     uni = UnigramModel(path + train)
     print(dashLine + "\n")
@@ -173,6 +311,7 @@ def main():
     print("")
     print("Unigram test perplexity: " + str(uni.testModel(path + test)))
     print(dashLine + "\n")
+    """
 
 
 if __name__ == '__main__':
