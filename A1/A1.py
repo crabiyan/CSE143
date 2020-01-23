@@ -74,6 +74,60 @@ def preprocessData(trainPath, devPath, testPath):
     ppTrain.close()
     trainFile.close()
 
+
+
+    devFile = open(devPath, "r")
+    ppDev = open(preprocessedDev, "w")
+
+    for line in devFile:
+        newLine = line.strip().split()
+
+        tokens = line.strip().split(" ")
+
+        i = 0
+
+        while i < len(tokens):
+            tokens[i] = tokens[i].strip()
+            if vocabulary.get(tokens[i], 0) == 0:
+                newLine[i] = '<UNK>'
+
+            i += 1
+
+        for token in newLine:
+            ppDev.write(token + " ")
+
+        ppDev.write("\n")
+
+    devFile.close()
+    ppDev.close()
+
+
+    testFile = open(testPath, "r")
+    ppTest = open(preprocessedTest, "w")
+
+    for line in testFile:
+        newLine = line.strip().split()
+
+        tokens = line.strip().split(" ")
+
+        i = 0
+
+        while i < len(tokens):
+            tokens[i] = tokens[i].strip()
+            if vocabulary.get(tokens[i], 0) == 0:
+                newLine[i] = '<UNK>'
+
+            i += 1
+
+        for token in newLine:
+            ppTest.write(token + " ")
+
+        ppTest.write("\n")
+
+    testFile.close()
+    ppTest.close()
+
+
     return (vocabulary, corpusSize)
 
 
