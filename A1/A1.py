@@ -3,9 +3,6 @@ import re
 import math
 from fractions import Fraction
 
-# Open the file in read mode 
-#text = open(sys.argv[1], "r") 
-
 train = "1b_benchmark.train.tokens"
 dev = "1b_benchmark.dev.tokens"
 test = "1b_benchmark.test.tokens"
@@ -220,7 +217,7 @@ class UnigramModel:
 
         for line in testFile:
             # append stop token to EOLs
-            line = line + ' <STOP>'
+            line = line.strip() + ' <STOP>'
 
             # split the line into tokens and strip whitespace
             sentence = [token.strip() for token in line.split(" ")]
