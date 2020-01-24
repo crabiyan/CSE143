@@ -133,12 +133,12 @@ def preprocessData(trainPath, devPath, testPath):
     return (vocabulary, corpusSize)
 
 # global variable for vocabulary and corpusSize
-(vocab, cS) = preprocessData('1b_benchmark.train.tokens','1b_benchmark.dev.tokens','1b_benchmark.test.tokens')
+
 
 class UnigramModel:
-    def __init__(self, text):
+    def __init__(self, vocab, cS):
         print("Constructing Unigram Model...")
-        textFile = open(text, "r")
+        textFile = open(preprocessedTrain, "r")
         self.freq_dict = dict()
         self.corpusSize = 0
 
@@ -270,7 +270,7 @@ class UnigramModel:
 
         for line in testFile:
             # append stop token to EOLs
-            line = line + ' <STOP>'
+            line = line.strip() + ' <STOP>'
 
             # split the line into tokens and strip whitespace
             sentence = [token.strip() for token in line.split(" ")]
@@ -282,23 +282,26 @@ class UnigramModel:
         return self.calcPerplexity(sentences)
 
 class BigramModel:
-    def __init__(self, text):
+    def __init__(self, vocab, cS):
     #    self.uni = unigramModel
-        textFile = open(text, "r")
+        textFile = open(preprocessedTrain, "r")
         self.freq_dict = dict()
         self.corpusSize = 0
         for line in textFile:
              # append stop token to EOLs
-            line = '<START>' + line + ' <STOP>'
+            line = '<START> ' + line.strip() + ' <STOP>'
              # split the line into tokens
             tokens = line.split(" ")
             bigramList = self.createBigrams(tokens)
             for bigram in bigramList:
-                 if bigram in self.freq_dict:
+                #if bigram == ('Long','before'): print(str(bigram) + " BIGRAM")
+              #  print(str(bigram))
+                if bigram in self.freq_dict:
                      self.freq_dict[bigram] = self.freq_dict[bigram] + 1
                  # else initialize that token's key with value 1
-                 else:
+                else:
                      self.freq_dict[bigram] = 1
+        self.sentList = UnigramModel(vocab,cS).testModel(preprocessedTrain)
       #  self.replaceUNKs(self.freq_dict, self.uni.unkList)
 
     # BigramModel('1b_benchmark.test.tokens', UnigramModel('1b_benchmark.test.tokens'))
@@ -354,19 +357,64 @@ class BigramModel:
         bigram_numerator = self.freq_dict.get((tt[0],tt[1]), 0)
         bigram_denominator = vocab.get(tt[0], 0)
         if bigram_numerator == 0 or bigram_denominator == 0:
+            print("bigram num = " + str(bigram_numerator))
+            print("bigram den = " + str(bigram_denominator))
             return 0
         else: return Fraction(bigram_numerator, bigram_denominator)
 
-    def calcSentenceProb(self, sentence):
-        if not sentence: return 0
+    def calcPerplexity(self, sentences):
+        sampleLogSum = 0
 
-        prob = Fraction(1)
+        #Keep track of how many tokens are in the sample we are testing
+        sampleSize = 0
 
-        for i in range(1, len(sentence) - 1):
-            prob = prob * self.calcTokenProb((sentence[i-1], sentence[i]))
+        #Find the log probability of each sentence and sum them all up
+        for sentence in sentences:
+            sampleSize += len(sentence)
 
-        return prob
+            sentenceLogSum = 0
 
+            for i in range(1, len(sentence) - 1):
+                tokenProb = self.calcTokenProb((sentence[i-1], sentence[i]))
+              #  print(tokenProb)         
+                if tokenProb > 0:
+                    sentenceLogSum += math.log(tokenProb.numerator, 2) - math.log(tokenProb.denominator, 2)
+                else:
+                    print("Token: " + str((sentence[i-1], sentence[i])))
+                    return -1
+
+            sampleLogSum += sentenceLogSum
+        #To get perplexity, multiply this sum by the negative reciprocal 
+        #of sample size and exponentiate it base 2
+        sampleLogSum = sampleLogSum * (-1 / float(sampleSize))
+        perplexity = 2 ** sampleLogSum
+
+        return perplexity
+
+    def testModel(self, test):
+        testFile = open(test, "r")
+        print("Calculating perplexity of " + test)
+
+        sentences = []
+
+        for line in testFile:
+            # append stop token to EOLs
+            line = line.strip() + ' <STOP>'
+
+            # split the line into tokens and strip whitespace
+            sentence = [token.strip() for token in line.split(" ")]
+
+            sentences.append(sentence)
+
+        testFile.close()
+        perplexity = self.calcPerplexity(sentences)
+        if perplexity == -1: return 'inf'
+        else: return perplexity
+
+"""
+class TrigramModel:
+    def __init__():
+"""
 def main():
 
     path = sys.argv[1] + "/"
@@ -386,6 +434,13 @@ def main():
     print("Unigram test perplexity: " + str(uni.testModel(path + test)))
     print(dashLine + "\n")
     """
+
+# global vars for testing purposes
+(vocab, cS) = preprocessData('1b_benchmark.train.tokens','1b_benchmark.dev.tokens','1b_benchmark.test.tokens')
+b = BigramModel(vocab, cS)
+sent = b.sentList
+sample = '<START> Long before the advent of e-commerce , Wal-Mart s founder Sam Walton set out his vision for a successful retail operation :  We let folks know we re interested in them and that they re vital to us--  cause they are ,  he said . <STOP>'
+sample = sample.strip().split(" ")
 
 
 if __name__ == '__main__':
