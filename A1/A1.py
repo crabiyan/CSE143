@@ -25,8 +25,8 @@ def preprocessData(trainPath, devPath, testPath):
     #Go through the train file and build a vocabulary 
     for line in trainFile:
 
-        line = '<START> ' + line + ' <STOP>'
-        tokens = line.split(" ")
+        line = '<START> ' + line.strip() + ' <STOP>'
+        tokens = line.split()
         corpusSize += len(tokens) - 1
 
         for token in tokens:
@@ -58,7 +58,7 @@ def preprocessData(trainPath, devPath, testPath):
     for line in trainFile:
         newLine = line.strip().split()
 
-        tokens = line.strip().split(" ")
+        tokens = line.strip().split()
 
         i = 0
 
@@ -86,7 +86,7 @@ def preprocessData(trainPath, devPath, testPath):
     for line in devFile:
         newLine = line.strip().split()
 
-        tokens = line.strip().split(" ")
+        tokens = line.strip().split()
 
         i = 0
 
@@ -114,7 +114,7 @@ def preprocessData(trainPath, devPath, testPath):
     for line in testFile:
         newLine = line.strip().split()
 
-        tokens = line.strip().split(" ")
+        tokens = line.strip().split()
 
         i = 0
 
@@ -220,7 +220,7 @@ class UnigramModel:
             line = line.strip() + ' <STOP>'
 
             # split the line into tokens and strip whitespace
-            sentence = [token.strip() for token in line.split(" ")]
+            sentence = [token.strip() for token in line.split()]
 
             sentences.append(sentence)
 
@@ -230,60 +230,26 @@ class UnigramModel:
 
 
 class BigramModel:
-    def __init__(self, text, unigramModel):
-        self.uni = unigramModel
-        textFile = open(text, "r")
+    def __init__(self, vocab, cS):
+        print("Constructing Bigram Model...")
+        textFile = open(preprocessedTrain, "r")
         self.freq_dict = dict()
         self.corpusSize = 0
+        self.vocab = vocab
         for line in textFile:
              # append stop token to EOLs
-            line = '<START>' + line + ' <STOP>'
+            line = '<START> ' + line.strip() + ' <STOP>'
              # split the line into tokens
-            tokens = line.split(" ")
+            tokens = line.split()
             bigramList = self.createBigrams(tokens)
             for bigram in bigramList:
-                 if bigram in self.freq_dict:
+                if bigram in self.freq_dict:
                      self.freq_dict[bigram] = self.freq_dict[bigram] + 1
                  # else initialize that token's key with value 1
-                 else:
+                else:
                      self.freq_dict[bigram] = 1
-        self.replaceUNKs(self.freq_dict, self.uni.unkList)
 
-    # BigramModel('1b_benchmark.test.tokens', UnigramModel('1b_benchmark.test.tokens'))
-
-    #Returns a new bigram dictionary with unked words
-    def replaceUNKs(self, idict, unks):
-        firstWord = ""
-        secondWord = ""
-        fdict = dict()
-
-        #Loop through the entire given dicts
-        for (fst, snd) in idict:
-            #Loop through the list of words that are to be converted to unk
-            for unk in unks:
-
-                #IF either word in the bigram is equal to any of the unked words, convert it to unk
-                if fst == unk:
-                    firstWord = 'unk'
-
-                if snd == unk:
-                    secondWord = 'unk'
-
-            #If either word is still empty, it is the same
-            if firstWord == "":
-                firstWord = fst
-
-            if secondWord == "":
-                secondWord = snd
-
-            #Check if the bigram is already in the dictionary before adding it
-            #This should only happen for bigrams containing unk
-            if (firstWord, secondWord) in fdict:
-                fdict[(firstWord, secondWord)] += idict[(fst, snd)]
-            else:
-                fdict[(firstWord, secondWord)] = idict[(fst, snd)]
-        print(fdict)
-        return fdict
+        print("Bigram model constructed!") 
 
     def createBigrams(self, sentence):
         if len(sentence) < 2:
@@ -293,11 +259,180 @@ class BigramModel:
         bigramList = []
 
         while i < len(sentence):
-            bigramList.append((sentence[i - 1].strip(), sentence[i].strip()))
-            i += 1
+            bigramList.append((sentence[i - 1], sentence[i]))
+            i = i + 1
 
         return bigramList
 
+    def calcTokenProb(self, tt):
+        bigram_numerator = self.freq_dict.get((tt[0],tt[1]), 0)
+        if tt[0] == '<START>': bigram_denominator = self.vocab.get('<STOP>', 0)
+        else: bigram_denominator = self.vocab.get(tt[0], 0)
+        if bigram_numerator == 0 or bigram_denominator == 0:
+            print("bigram num = " + str(bigram_numerator))
+            print("bigram den = " + str(bigram_denominator))
+            return 0
+        else: return Fraction(bigram_numerator, bigram_denominator)
+
+    def calcPerplexity(self, sentences):
+        sampleLogSum = 0
+
+        #Keep track of how many tokens are in the sample we are testing
+        sampleSize = 0
+
+        #Find the log probability of each sentence and sum them all up
+        for sentence in sentences:
+            sampleSize += len(sentence)
+
+            sentenceLogSum = 0
+
+            for i in range(1, len(sentence) - 1):
+                tokenProb = self.calcTokenProb((sentence[i-1], sentence[i]))
+              #  print(tokenProb)         
+                if tokenProb > 0:
+                    sentenceLogSum += math.log(tokenProb.numerator, 2) - math.log(tokenProb.denominator, 2)
+                else:
+                    print("Token: " + str((sentence[i-1], sentence[i])))
+                    return -1
+
+            sampleLogSum += sentenceLogSum
+        #To get perplexity, multiply this sum by the negative reciprocal 
+        #of sample size and exponentiate it base 2
+        sampleLogSum = sampleLogSum * (-1 / float(sampleSize))
+        perplexity = 2 ** sampleLogSum
+
+        return perplexity
+
+    def testModel(self, test):
+        testFile = open(test, "r")
+        print("Calculating perplexity of " + test)
+
+        sentences = []
+
+        for line in testFile:
+            # append stop token to EOLs
+            line = '<START> ' + line.strip() + ' <STOP>'
+
+            # split the line into tokens and strip whitespace
+            sentence = [token.strip() for token in line.split(" ")]
+
+            sentences.append(sentence)
+
+        testFile.close()
+        perplexity = self.calcPerplexity(sentences)
+        if perplexity == -1: return 'INFINITY'
+        else: return perplexity
+
+class TrigramModel:
+    def __init__(self, bigram, cS):
+        print("Constructing Trigram Model...")
+        textFile = open(preprocessedTrain, "r")
+        self.freq_dict = dict()
+        self.corpusSize = 0
+        self.bigram = bigram
+
+        for line in textFile:
+            line = '<START> ' + line.strip() + ' <STOP>'
+            tokens = line.split(" ")
+            trigramList = self.createTrigrams(tokens)
+
+            for trigram in trigramList:
+                if trigram in self.freq_dict:
+                    self.freq_dict[trigram] = self.freq_dict[trigram] + 1
+                 # else initialize that token's key with value 1
+                else:
+                     self.freq_dict[trigram] = 1
+        print("Trigram model constructed!")
+
+    def createTrigrams(self, sentence):
+        if len(sentence) < 3:
+            return []
+
+        i = 2
+        trigramList = [(sentence[0], sentence[1])]
+
+        while i < len(sentence):
+            trigramList.append((sentence[i - 2], sentence[i - 1], sentence[i]))
+            i = i + 1
+
+        return trigramList
+
+    def calcTokenProb(self, tt):
+        if len(tt) == 3:
+            trigram_numerator = self.freq_dict.get((tt[0],tt[1],tt[2]), 0)
+            trigram_denominator = self.bigram.freq_dict.get((tt[0],tt[1]), 0)
+            if trigram_numerator == 0 or trigram_denominator == 0:
+                print("trigram num = " + str(trigram_numerator))
+                print("trigram den = " + str(trigram_denominator))
+                return 0
+            else: return Fraction(trigram_numerator, trigram_denominator)
+        elif len(tt) == 2:
+            bigram_numerator = self.bigram.freq_dict.get((tt[0],tt[1]), 0)
+            if tt[0] == '<START>': bigram_denominator = self.bigram.vocab.get('<STOP>', 0)
+            else: bigram_denominator = self.bigram.vocab.get(tt[0], 0)
+            if bigram_numerator == 0 or bigram_denominator == 0:
+                print("Trigram (bigram) num = " + str(bigram_numerator))
+                print("Trigram (bigram) den = " + str(bigram_denominator))
+                return 0
+            else: return Fraction(bigram_numerator, bigram_denominator)
+
+    def calcPerplexity(self, sentences):
+        sampleLogSum = 0
+
+        #Keep track of how many tokens are in the sample we are testing
+        sampleSize = 0
+
+        #Find the log probability of each sentence and sum them all up
+        for sentence in sentences:
+            sampleSize += len(sentence)
+
+            sentenceLogSum = 0
+
+            firstBigramProb = self.calcTokenProb((sentence[0], sentence[1]))
+
+            if firstBigramProb > 0:
+                sentenceLogSum += math.log(firstBigramProb.numerator, 2) - math.log(firstBigramProb.denominator, 2)
+            else:
+                print("Token: " + str((sentence[0], sentence[1])))
+                return -1
+
+            for i in range(2, len(sentence) - 1):
+                tokenProb = self.calcTokenProb((sentence[i-2], sentence[i-1], sentence[i]))
+              #  print(tokenProb)         
+                if tokenProb > 0:
+                    sentenceLogSum += math.log(tokenProb.numerator, 2) - math.log(tokenProb.denominator, 2)
+                else:
+                    print("Token: " + str((sentence[i-2], sentence[i-1], sentence[i])))
+                    return -1
+
+            sampleLogSum += sentenceLogSum
+        #To get perplexity, multiply this sum by the negative reciprocal 
+        #of sample size and exponentiate it base 2
+        sampleLogSum = sampleLogSum * (-1 / float(sampleSize))
+        perplexity = 2 ** sampleLogSum
+
+        return perplexity
+
+    def testModel(self, test):
+        testFile = open(test, "r")
+        print("Calculating perplexity of " + test)
+
+        sentences = []
+
+        for line in testFile:
+            # append stop token to EOLs
+            line = '<START> ' + line.strip() + ' <STOP>'
+
+            # split the line into tokens and strip whitespace
+            sentence = [token.strip() for token in line.split(" ")]
+
+            sentences.append(sentence)
+
+        testFile.close()
+
+        perplexity = self.calcPerplexity(sentences)
+        if perplexity == -1: return 'INFINITY'
+        else: return perplexity
 
 def main():
 
@@ -309,14 +444,36 @@ def main():
 
     print("\n" + dashLine)
     uni = UnigramModel(vocabulary, corpusSize)
+    bi = BigramModel(vocabulary, corpusSize)
+    tri = TrigramModel(bi, corpusSize)
     print(dashLine + "\n")
 
-    print("\n" + dashLine)
-    print("Unigram train perplexity: " + str(uni.testModel(path + train)))
+    print("\n" + "Unigram Model")
+    print(dashLine)
+    print("Unigram train perplexity: " + str(uni.testModel(preprocessedTrain)))
     print("")
-    print("Unigram dev perplexity: " + str(uni.testModel(path + dev)))
+    print("Unigram dev perplexity: " + str(uni.testModel(preprocessedDev)))
     print("")
-    print("Unigram test perplexity: " + str(uni.testModel(path + test)))
+    print("Unigram test perplexity: " + str(uni.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    print("\n" + "Bigram Model")
+    print(dashLine)
+    print("Bigram train perplexity: " + str(bi.testModel(preprocessedTrain)))
+    print("")
+    print("Bigram dev perplexity: " + str(bi.testModel(preprocessedDev)))
+    print("")
+    print("Bigram test perplexity: " + str(bi.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    print("\n" + "Trigram Model")
+    print(dashLine)
+    print("Trigram train perplexity: " + str(tri.testModel(preprocessedTrain)))
+    print("")
+    print("Trigram dev perplexity: " + str(tri.testModel(preprocessedDev)))
+    print("")
+    print("Trigram test perplexity: " + str(tri.testModel(preprocessedTest)))
+    print(dashLine + "\n")
     
 
 
