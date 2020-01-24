@@ -135,7 +135,64 @@ class UnigramModel:
         perplexity = 2 ** sampleLogSum
 
         return perplexity
+        
+    def guessHyperParameters(self):
+        hyperparameters = []
+        hyperparameters[0] = random(0.0,1.0)
+        hyperparameters[1] = random(0.0, 1.0 - float(hyperparameters[0]))
+        hyperparameters[2]	= 1.0 - (float(hyperparameters[0]) + float(hyperparameters[1]))
+        return hyperparameters	
+ 
+    def calcSmoothPerplexity(self, unisentences, bisentences, trisentences):
+#        hyperparameters = self.guessHyperParameters()
+        hyperparameters = [0.1, 0.3, 0.6]
+        smoothLogSum = 0
+		
+        sampleSize = 0
 
+        for unisentence in unisentences:
+            sampleSize += len(unisentence)
+            uniLogSum = 0
+            uniSentenceLogSum = 0
+            for unitoken in unisentence:
+                uniTokenProb = self.calcTokenProb(unitoken)# * hyperparameters[0]
+                if uniTokenProb > 0:
+                    uniSentenceLogSum += math.log(uniTokenProb.numerator, 2) - math.log(uniTokenProb.denominator, 2)
+                else:
+                    print("Unigram Token: " + uniToken)
+                    return -1
+            uniLogSum += uniSentenceLogSum * hyperparameters[0]
+		
+        for bisentence in bisentences:
+            biLogSum = 0
+            biSentenceLogSum = 0
+            for bitoken in bisentence:
+                biTokenProb = self.calcTokenProb(bitoken)# * hyperparameters[1]
+                if biTokenProb > 0:
+                    biSentenceLogSum += math.log(biTokenProb.numerator, 2) - math.log(biTokenProb.denominator, 2)
+                else:
+                    print("Bigram Token: " + biToken)
+                    return -1
+                biLogSum += biSentenceLogSum * hyperparameters[1]
+		
+        for trisentence in trisentences:
+            triLogSum = 0
+            triSentenceLogSum = 0
+            for tritoken in trisentence:
+                triTokenProb = self.calcTokenProb(tritoken)# * hyperparameters[2]
+                if triTokenProb > 0:
+                    triSentenceLogSum += math.log(triTokenProb.numerator, 2) - math.log(triTokenProb.denominator, 2)
+                else:
+                    print("Trigram Token: " + triToken)
+                    return -1
+                triLogSum += triSentenceLogSum * hyperparameters[2]
+		
+        smoothLogSum += (uniLogSum + biLogSum + triLogSum)
+		
+        smoothLogSum = smoothLogSum * (-1 / float(sampleSize))
+        smoothPerplexity = 2 ** (smoothLogSum)
+		
+        return smoothPerplexity
 
     #Uses a test file and calculates perplexity based on that sample
     def testModel(self, test):
