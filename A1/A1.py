@@ -311,7 +311,7 @@ def main():
     print(dashLine + "\n")
 
     print("\n" + dashLine)
-    uni = NewUnigram(vocabulary, corpusSize)
+    uni = UnigramModel(vocabulary, corpusSize)
     print(dashLine + "\n")
 
     print("\n" + dashLine)
