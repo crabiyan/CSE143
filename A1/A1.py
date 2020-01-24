@@ -17,16 +17,20 @@ preprocessedTest = "test.preprocessed"
 dashLine = "------------------------------------------------------------------------"
 
 def preprocessData(trainPath, devPath, testPath):
+
+    print("Preprocessing train data...")
+
     trainFile = open(trainPath, "r")
 
     freq_dict = dict()
     corpusSize = 0
 
+    #Go through the train file and build a vocabulary 
     for line in trainFile:
 
         line = '<START> ' + line + ' <STOP>'
         tokens = line.split(" ")
-        corpusSize = len(tokens) - 1
+        corpusSize += len(tokens) - 1
 
         for token in tokens:
             token = token.strip()
@@ -52,6 +56,8 @@ def preprocessData(trainPath, devPath, testPath):
     trainFile.close()
     trainFile = open(trainPath, "r")
 
+    #Go through all three files and unk any words that need to be
+    #Write these to new files
     for line in trainFile:
         newLine = line.strip().split()
 
@@ -74,7 +80,8 @@ def preprocessData(trainPath, devPath, testPath):
     ppTrain.close()
     trainFile.close()
 
-
+    print("Train data preprocessed!")
+    print("Preprocessing dev data...")
 
     devFile = open(devPath, "r")
     ppDev = open(preprocessedDev, "w")
@@ -101,6 +108,8 @@ def preprocessData(trainPath, devPath, testPath):
     devFile.close()
     ppDev.close()
 
+    print("Dev data preprocessed!")
+    print("Preprocessing test data...")
 
     testFile = open(testPath, "r")
     ppTest = open(preprocessedTest, "w")
@@ -127,53 +136,26 @@ def preprocessData(trainPath, devPath, testPath):
     testFile.close()
     ppTest.close()
 
+    print("Test data preprocessed!")
 
     return (vocabulary, corpusSize)
 
-
 class UnigramModel:
-    def __init__(self, text):
+    def __init__(self, vocab, corpusSize):
         print("Constructing Unigram Model...")
-        textFile = open(text, "r")
-        self.freq_dict = dict()
-        self.corpusSize = 0
 
-        for line in textFile:
-            # append stop token to EOLs
-            line = line + ' <STOP>'
-            # split the line into tokens
-            tokens = line.split(" ")
-            # iterate through each token
-            for token in tokens:
-                self.corpusSize += 1
-                # remove whitespace and \n characters
-                token = token.strip()
-                # if token is already in dictionary then increment the count
-                if token in self.freq_dict:
-                    self.freq_dict[token] = self.freq_dict[token] + 1
-                # else initialize that token's key with value 1
-                else:
-                    self.freq_dict[token] = 1
+        self.unigramFrequency = vocab
+        self.corpusSize = corpusSize
 
-        self.freq_dict = self.replaceUNKs(self.freq_dict)
-        textFile.close()
         print("Unigram model constructed!")
-
-    # this function replaces all keys with < 3 frequency with 'unk'
-    def replaceUNKs(self, idict):
-        fdict = {k:v for (k,v) in idict.items() if v >= 3}
-        fdict['unk'] = 0
-        for k, v in idict.items():
-            if(v < 3): fdict['<UNK>'] = fdict['<UNK>'] + idict[k]
-        return fdict
 
     def calcTokenProb(self, token):
         #The numerator is the frequency of the specified token, return 0 if not found in dict
-        unigram_numerator = self.freq_dict.get(token, 0)
+        unigram_numerator = self.unigramFrequency.get(token, 0)
 
         #If frequency is 0, the word is unkown
         if unigram_numerator == 0:
-            unigram_numerator = self.freq_dict.get('<UNK>', 0)
+            unigram_numerator = self.unigramFrequency.get('<UNK>', 0)
 
         #The denominator is just the size of the corpus
         unigram_denominator = self.corpusSize
@@ -195,34 +177,6 @@ class UnigramModel:
             prob = prob * self.calcTokenProb(token)
 
         return prob
-
-    #Takes a list of sentences and calculates the perplexity of the model given those senetences
-    def calcPerplexityOLD(self, sentences):
-        logSum = 0
-
-        #Keep track of how many tokens are in the sample we are testing
-        sampleSize = 0
-
-        #Find the log probability of each sentence and sum them all up
-        for sentence in sentences:
-            sampleSize += len(sentence)
-            sentenceProb = self.calcSentenceProb(sentence)
-
-            #Log is undefined if input is not > 0
-            if sentenceProb.numerator > 0:
-                logProb = math.log(sentenceProb.numerator, 2) - math.log(sentenceProb.denominator, 2)
-                logSum += logProb
-            #Here we assume Pr = 0, so perplexity is infinite, return -1 to signify this
-            else:
-               print("Sentence:" + str(sentence))
-               return -1
-
-        #To get perplexity, multiply this sum by the negative reciprocal 
-        #of sample size and exponentiate it base 2
-        logSum = logSum * (-1 / float(sampleSize))
-        perplexity = 2 ** logSum
-
-        return perplexity
 
     def calcPerplexity(self, sentences):
         sampleLogSum = 0
@@ -276,6 +230,7 @@ class UnigramModel:
         testFile.close()
 
         return self.calcPerplexity(sentences)
+
 
 class BigramModel:
     def __init__(self, text, unigramModel):
@@ -351,23 +306,30 @@ def main():
 
     path = sys.argv[1] + "/"
 
-    preprocessData(path + train, path + dev, path + test)
-
-    """
     print("\n" + dashLine)
-    uni = UnigramModel(path + train)
+    (vocabulary, corpusSize) = preprocessData(path + train, path + dev, path + test)
     print(dashLine + "\n")
-    
+
+    print("\n" + dashLine)
+    uni = NewUnigram(vocabulary, corpusSize)
+    print(dashLine + "\n")
+
     print("\n" + dashLine)
     print("Unigram train perplexity: " + str(uni.testModel(path + train)))
     print("")
     print("Unigram dev perplexity: " + str(uni.testModel(path + dev)))
     print("")
     print("Unigram test perplexity: " + str(uni.testModel(path + test)))
-    print(dashLine + "\n")
-    """
+    
+
+
+def usage():
+    print("A1.py accepts 1 argument:\nThe folder where the data files are stored")
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) != 2:
+        usage()
+    else:
+        main()
 
