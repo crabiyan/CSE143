@@ -439,6 +439,92 @@ class TrigramModel:
         if perplexity == -1: return 'INFINITY'
         else: return perplexity
 
+    
+
+class SmoothedModel:
+    def __init__(self, uni, bi, tri, l1, l2, l3):
+        self.unigram = uni
+        self.bigram = bi
+        self.trigram = tri
+        self.lambda1 = Fraction(l1)
+        self.lambda2 = Fraction(l2)
+        self.lambda3 = Fraction(l3)
+
+    def setLambdas(self, l1, l2, l3):
+        self.lambda1 = Fraction(l1)
+        self.lambda2 = Fraction(l2)
+        self.lambda3 = Fraction(l3)
+
+    def calcTokenProb(self, ngram):
+        #ngram is usually a trigram, but is sometimes a bigram
+        tupleSize = len(ngram)
+
+        uniProb = self.unigram.calcTokenProb(ngram[tupleSize - 1])
+        biProb = self.unigram.calcTokenProb((ngram[tupleSize - 1], ngram[tupleSize - 1]))
+        triProb = self.unigram.calcTokenProb(ngram)
+
+        return (uniProb*self.lambda1 + biProb*self.lambda2 + triProb*self.lambda3)
+
+    #Calculate the perplexity of the model on a list of sentences
+    def calcPerplexity(self, sentences):
+        sampleLogSum = 0
+
+        #Keep track of how many tokens are in the sample we are testing
+        sampleSize = 0
+
+        #Find the log probability of each sentence and sum them all up
+        for sentence in sentences:
+            sampleSize += len(sentence)
+
+            sentenceLogSum = 0
+
+            firstBigramProb = self.calcTokenProb((sentence[0], sentence[1]))
+
+            if firstBigramProb > 0:
+                sentenceLogSum += math.log(firstBigramProb.numerator, 2) - math.log(firstBigramProb.denominator, 2)
+            else:
+                #print("Token: " + str((sentence[0], sentence[1])))
+                return -1
+
+            for i in range(2, len(sentence) - 1):
+                tokenProb = self.calcTokenProb((sentence[i-2], sentence[i-1], sentence[i]))
+              #  print(tokenProb)         
+                if tokenProb > 0:
+                    sentenceLogSum += math.log(tokenProb.numerator, 2) - math.log(tokenProb.denominator, 2)
+                else:
+                    #print("Token: " + str((sentence[i-2], sentence[i-1], sentence[i])))
+                    return -1
+
+            sampleLogSum += sentenceLogSum
+        #To get perplexity, multiply this sum by the negative reciprocal 
+        #of sample size and exponentiate it base 2
+        sampleLogSum = sampleLogSum * (-1 / float(sampleSize))
+        perplexity = 2 ** sampleLogSum
+
+        return perplexity
+
+    #Uses a test file and calculates perplexity based on that sample
+    def testModel(self, test):
+        testFile = open(test, "r")
+        print("Calculating perplexity of " + test)
+
+        sentences = []
+
+        for line in testFile:
+            # append stop token to EOLs
+            line = '<START> ' + line.strip() + ' <STOP>'
+
+            # split the line into tokens and strip whitespace
+            sentence = [token.strip() for token in line.split(" ")]
+
+            sentences.append(sentence)
+
+        testFile.close()
+
+        perplexity = self.calcPerplexity(sentences)
+        if perplexity == -1: return 'INFINITY'
+        else: return perplexity
+
 def main():
 
     path = sys.argv[1] + "/"
@@ -484,7 +570,20 @@ def main():
     print("")
     print("Trigram test perplexity: " + str(tri.testModel(preprocessedTest)))
     print(dashLine + "\n")
+
+    smooth = SmoothedModel(uni, bi, tri, 0.1, 0.3, 0.6)
+
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model: This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
     
+
 
 
 def usage():
