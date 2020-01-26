@@ -281,11 +281,11 @@ class BigramModel:
 
         #Find the log probability of each sentence and sum them all up
         for sentence in sentences:
-            sampleSize += len(sentence)
+            sampleSize += len(sentence) - 1
 
             sentenceLogSum = 0
 
-            for i in range(1, len(sentence) - 1):
+            for i in range(1, len(sentence)):
                 tokenProb = self.calcTokenProb((sentence[i-1], sentence[i]))
               #  print(tokenProb)         
                 if tokenProb > 0:
@@ -388,7 +388,7 @@ class TrigramModel:
 
         #Find the log probability of each sentence and sum them all up
         for sentence in sentences:
-            sampleSize += len(sentence)
+            sampleSize += len(sentence) - 1
 
             sentenceLogSum = 0
 
@@ -400,7 +400,7 @@ class TrigramModel:
                 #print("Token: " + str((sentence[0], sentence[1])))
                 return -1
 
-            for i in range(2, len(sentence) - 1):
+            for i in range(2, len(sentence)):
                 tokenProb = self.calcTokenProb((sentence[i-2], sentence[i-1], sentence[i]))
               #  print(tokenProb)         
                 if tokenProb > 0:
@@ -460,8 +460,8 @@ class SmoothedModel:
         tupleSize = len(ngram)
 
         uniProb = self.unigram.calcTokenProb(ngram[tupleSize - 1])
-        biProb = self.unigram.calcTokenProb((ngram[tupleSize - 1], ngram[tupleSize - 1]))
-        triProb = self.unigram.calcTokenProb(ngram)
+        biProb = self.bigram.calcTokenProb((ngram[tupleSize - 2], ngram[tupleSize - 1]))
+        triProb = self.trigram.calcTokenProb(ngram)
 
         return (uniProb*self.lambda1 + biProb*self.lambda2 + triProb*self.lambda3)
 
@@ -474,7 +474,7 @@ class SmoothedModel:
 
         #Find the log probability of each sentence and sum them all up
         for sentence in sentences:
-            sampleSize += len(sentence)
+            sampleSize += len(sentence) - 1
 
             sentenceLogSum = 0
 
@@ -486,7 +486,7 @@ class SmoothedModel:
                 #print("Token: " + str((sentence[0], sentence[1])))
                 return -1
 
-            for i in range(2, len(sentence) - 1):
+            for i in range(2, len(sentence)):
                 tokenProb = self.calcTokenProb((sentence[i-2], sentence[i-1], sentence[i]))
               #  print(tokenProb)         
                 if tokenProb > 0:
@@ -524,6 +524,13 @@ class SmoothedModel:
         perplexity = self.calcPerplexity(sentences)
         if perplexity == -1: return 'INFINITY'
         else: return perplexity
+
+path = sys.argv[1] + "/"
+(vocabulary, corpusSize) = preprocessData(path + train, path + dev, path + test)
+uni = UnigramModel(vocabulary, corpusSize)
+bi = BigramModel(vocabulary, corpusSize)
+tri = TrigramModel(bi, corpusSize)
+smooth = SmoothedModel(uni, bi, tri, 0.1, 0.3, 0.6)
 
 def main():
 
@@ -572,9 +579,74 @@ def main():
     print(dashLine + "\n")
 
     smooth = SmoothedModel(uni, bi, tri, 0.1, 0.3, 0.6)
+    
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model (0.1, 0.3, 0.6): This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    #Change the lambda coefficients
+    smooth.setLambdas(0.33, 0.33, 0.34)
 
     #Test the perplexity of the smoothed model
-    print("\n" + "Smoothed Model: This may take a moment...")
+    print("\n" + "Smoothed Model (0.33, 0.33, 0.34): This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    #Change the lambda coefficients
+    smooth.setLambdas(0.15, 0.15, 0.7)
+
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model (0.7, 0.15, 0.15): This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    #Change the lambda coefficients
+    smooth.setLambdas(0.1, 0, 0.9)
+
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model (0.1, 0, 0.9): This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    #Change the lambda coefficients
+    smooth.setLambdas(0.9, 0, 0.1)
+
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model (0.9, 0, 0.1): This may take a moment...")
+    print(dashLine)
+    print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
+    print("")
+    print("Smoothed dev perplexity: " + str(smooth.testModel(preprocessedDev)))
+    print("")
+    print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
+    print(dashLine + "\n")
+
+    #Change the lambda coefficients
+    smooth.setLambdas(0.9, 0.1, 0)
+
+    #Test the perplexity of the smoothed model
+    print("\n" + "Smoothed Model (0.9, 0.1, 0): This may take a moment...")
     print(dashLine)
     print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
     print("")
@@ -583,7 +655,6 @@ def main():
     print("Smoothed test perplexity: " + str(smooth.testModel(preprocessedTest)))
     print(dashLine + "\n")
     
-
 
 
 def usage():
