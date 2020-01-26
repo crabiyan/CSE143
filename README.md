@@ -14,5 +14,5 @@
 - fractions - Rational numbers
 
 ## Running:
-'python3 A1.py {*path*}' 
+'python3 A1.py {*path*}' <br/>
 where *path* represents the path to the directory containing all the data files
