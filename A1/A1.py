@@ -524,14 +524,14 @@ class SmoothedModel:
         perplexity = self.calcPerplexity(sentences)
         if perplexity == -1: return 'INFINITY'
         else: return perplexity
-
+'''
 path = sys.argv[1] + "/"
 (vocabulary, corpusSize) = preprocessData(path + train, path + dev, path + test)
 uni = UnigramModel(vocabulary, corpusSize)
 bi = BigramModel(vocabulary, corpusSize)
 tri = TrigramModel(bi, corpusSize)
 smooth = SmoothedModel(uni, bi, tri, 0.1, 0.3, 0.6)
-
+'''
 def main():
 
     path = sys.argv[1] + "/"
