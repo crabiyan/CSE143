@@ -13,6 +13,6 @@
 - math - Mathematical functions
 - fractions - Rational numbers
 
-## Type into your development environment:
+## Running:
 'python3 A1.py {*path*}' 
 where *path* represents the path to the directory containing all the data files
