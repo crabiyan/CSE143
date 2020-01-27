@@ -1,12 +1,13 @@
 import sys 
-import re
 import math
 from fractions import Fraction
 
+#Names of train, test and dev files
 train = "1b_benchmark.train.tokens"
 dev = "1b_benchmark.dev.tokens"
 test = "1b_benchmark.test.tokens"
 
+#Names of new preprocessed file to output
 preprocessedTrain = "train.preprocessed"
 preprocessedDev = "dev.preprocessed"
 preprocessedTest = "test.preprocessed"
@@ -29,10 +30,13 @@ def preprocessData(trainPath, devPath, testPath):
     #Go through the train file and build a vocabulary 
     for line in trainFile:
 
+        #Add start and stop tokens
         line = '<START> ' + line.strip() + ' <STOP>'
         tokens = line.split()
+        #-1 is to not include start tokens in corpus size
         corpusSize += len(tokens) - 1
 
+        #Loop through each token and add it to the vocab
         for token in tokens:
             token = token.strip()
 
@@ -47,9 +51,7 @@ def preprocessData(trainPath, devPath, testPath):
     #Store any unked words in unkwords for later
     vocabulary = {k:v for (k,v) in freq_dict.items() if v >= 3}
     vocabulary['<UNK>'] = 0
-
     unkwords = set()
-
     for k, v in freq_dict.items():
         if(v < 3): 
             vocabulary['<UNK>'] = vocabulary['<UNK>'] + freq_dict[k]
@@ -65,12 +67,15 @@ def preprocessData(trainPath, devPath, testPath):
     #Go through all three files and unk any words that need to be
     #Write these to new files
     for line in trainFile:
+        #Line to output
         newLine = line.strip().split()
 
+        #Line to read
         tokens = line.strip().split()
 
         i = 0
 
+        #Loop throug each token, unk it in the output if necessary
         while i < len(tokens):
             tokens[i] = tokens[i].strip()
             if tokens[i] in unkwords:
@@ -78,6 +83,7 @@ def preprocessData(trainPath, devPath, testPath):
 
             i += 1
 
+        #Write to file, note there will be a space on the end of each line
         for token in newLine:
             ppTrain.write(token + " ")
 
@@ -89,6 +95,8 @@ def preprocessData(trainPath, devPath, testPath):
     print("Train data preprocessed!")
     print("Preprocessing dev data...")
 
+
+    #Same code as above for replacing unks, but now for dev file
     devFile = open(devPath, "r")
     ppDev = open(preprocessedDev, "w")
 
@@ -117,6 +125,7 @@ def preprocessData(trainPath, devPath, testPath):
     print("Dev data preprocessed!")
     print("Preprocessing test data...")
 
+    #Same code as above for replacing unks, but now for test file
     testFile = open(testPath, "r")
     ppTest = open(preprocessedTest, "w")
 
@@ -188,8 +197,10 @@ class UnigramModel:
             for token in sentence:
                 tokenProb = self.calcTokenProb(token)
 
+                #Log(0) is undefined, check before computing it
                 if tokenProb > 0:
                     sentenceLogSum += math.log(tokenProb.numerator, 2) - math.log(tokenProb.denominator, 2)
+                #-1 represents perplexity of infinity
                 else:
                     print("Token: " + token)
                     return -1
@@ -210,6 +221,7 @@ class UnigramModel:
 
         sentences = []
 
+        #Convert each line into a lsit of tokens
         for line in testFile:
             # append stop token to EOLs
             line = line.strip() + ' <STOP>'
@@ -225,18 +237,24 @@ class UnigramModel:
 
 
 class BigramModel:
-    def __init__(self, vocab, cS):
+    #Parse train file into bigrams, construct frequency dict of bigrams
+    def __init__(self, vocab):
         print("Constructing Bigram Model...")
         textFile = open(preprocessedTrain, "r")
         self.freq_dict = dict()
         self.corpusSize = 0
         self.vocab = vocab
+
         for line in textFile:
-             # append stop token to EOLs
+            # append stop token to EOLs
             line = '<START> ' + line.strip() + ' <STOP>'
-             # split the line into tokens
+            # split the line into tokens
             tokens = line.split()
+
+            #Parse line into bigrams
             bigramList = self.createBigrams(tokens)
+
+            #Record frequencies of bigrams
             for bigram in bigramList:
                 if bigram in self.freq_dict:
                      self.freq_dict[bigram] = self.freq_dict[bigram] + 1
@@ -267,8 +285,6 @@ class BigramModel:
         if tt[0] == '<START>': bigram_denominator = self.vocab.get('<STOP>', 0)
         else: bigram_denominator = self.vocab.get(tt[0], 0)
         if bigram_numerator == 0 or bigram_denominator == 0:
-            #print("bigram num = " + str(bigram_numerator))
-            #print("bigram den = " + str(bigram_denominator))
             return 0
         else: return Fraction(bigram_numerator, bigram_denominator)
 
@@ -309,6 +325,7 @@ class BigramModel:
 
         sentences = []
 
+        #Turn each line into a list of tokens
         for line in testFile:
             # append stop token to EOLs
             line = '<START> ' + line.strip() + ' <STOP>'
@@ -320,28 +337,35 @@ class BigramModel:
 
         testFile.close()
         perplexity = self.calcPerplexity(sentences)
+
+        #Negative 1 is infinity perplexity
         if perplexity == -1: return 'INFINITY'
         else: return perplexity
 
 class TrigramModel:
-    def __init__(self, bigram, cS):
+    #Parse train file into bigrams, construct frequency dict of trigrams
+    def __init__(self, bigram):
         print("Constructing Trigram Model...")
         textFile = open(preprocessedTrain, "r")
         self.freq_dict = dict()
-        self.corpusSize = 0
         self.bigram = bigram
 
         for line in textFile:
+            #Add start and stop
             line = '<START> ' + line.strip() + ' <STOP>'
             tokens = line.split(" ")
+
+            #Parse trigrams in sentence (including first bigram)
             trigramList = self.createTrigrams(tokens)
 
+            #Build frequency dict of trigrams
             for trigram in trigramList:
                 if trigram in self.freq_dict:
                     self.freq_dict[trigram] = self.freq_dict[trigram] + 1
                  # else initialize that token's key with value 1
                 else:
                      self.freq_dict[trigram] = 1
+
         print("Trigram model constructed!")
 
     #Function that takes a sentence as a list of words and returns a list of
@@ -361,21 +385,19 @@ class TrigramModel:
 
     #Calculate the probability of a given trigram
     def calcTokenProb(self, tt):
+        #Usually trigrams will be 3 long
         if len(tt) == 3:
             trigram_numerator = self.freq_dict.get((tt[0],tt[1],tt[2]), 0)
             trigram_denominator = self.bigram.freq_dict.get((tt[0],tt[1]), 0)
             if trigram_numerator == 0 or trigram_denominator == 0:
-                #print("trigram num = " + str(trigram_numerator))
-                #print("trigram den = " + str(trigram_denominator))
                 return 0
             else: return Fraction(trigram_numerator, trigram_denominator)
+        #First trigram is really a bigram, use the bigram model
         elif len(tt) == 2:
             bigram_numerator = self.bigram.freq_dict.get((tt[0],tt[1]), 0)
             if tt[0] == '<START>': bigram_denominator = self.bigram.vocab.get('<STOP>', 0)
             else: bigram_denominator = self.bigram.vocab.get(tt[0], 0)
             if bigram_numerator == 0 or bigram_denominator == 0:
-                #print("Trigram (bigram) num = " + str(bigram_numerator))
-                #print("Trigram (bigram) den = " + str(bigram_denominator))
                 return 0
             else: return Fraction(bigram_numerator, bigram_denominator)
 
@@ -524,14 +546,7 @@ class SmoothedModel:
         perplexity = self.calcPerplexity(sentences)
         if perplexity == -1: return 'INFINITY'
         else: return perplexity
-'''
-path = sys.argv[1] + "/"
-(vocabulary, corpusSize) = preprocessData(path + train, path + dev, path + test)
-uni = UnigramModel(vocabulary, corpusSize)
-bi = BigramModel(vocabulary, corpusSize)
-tri = TrigramModel(bi, corpusSize)
-smooth = SmoothedModel(uni, bi, tri, 0.1, 0.3, 0.6)
-'''
+
 def main():
 
     path = sys.argv[1] + "/"
@@ -544,8 +559,8 @@ def main():
     #Build our n-gram models
     print("\n" + dashLine)
     uni = UnigramModel(vocabulary, corpusSize)
-    bi = BigramModel(vocabulary, corpusSize)
-    tri = TrigramModel(bi, corpusSize)
+    bi = BigramModel(vocabulary)
+    tri = TrigramModel(bi)
     print(dashLine + "\n")
 
     #Test the perplexity of the unigram model
@@ -607,7 +622,7 @@ def main():
     smooth.setLambdas(0.15, 0.15, 0.7)
 
     #Test the perplexity of the smoothed model
-    print("\n" + "Smoothed Model (0.7, 0.15, 0.15): This may take a moment...")
+    print("\n" + "Smoothed Model (0.15, 0.15, 0.7): This may take a moment...")
     print(dashLine)
     print("Smoothed train perplexity: " + str(smooth.testModel(preprocessedTrain)))
     print("")
